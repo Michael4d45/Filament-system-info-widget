@@ -157,7 +157,7 @@ SystemInfoWidget::make()
 
 - PHP 8.1+
 - Laravel 10.0+ or 11.0+
-- Filament 3.0+
+- Filament 5.0+
 
 ## License
 
