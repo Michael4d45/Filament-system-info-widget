@@ -49,6 +49,11 @@ class SystemInfoWidget extends BaseWidget
     protected bool $showDeploymentInfo = true;
 
     /**
+     * Whether to show security audit information
+     */
+    protected bool $showAuditInfo = true;
+
+    /**
      * Path to release info file (relative to base_path)
      */
     protected string $releaseInfoPath = '.release-info';
@@ -76,6 +81,10 @@ class SystemInfoWidget extends BaseWidget
 
         if (isset($config['releaseInfoPath'])) {
             $this->releaseInfoPath = $config['releaseInfoPath'];
+        }
+
+        if (isset($config['showAuditInfo'])) {
+            $this->showAuditInfo = $config['showAuditInfo'];
         }
 
         return $this;
@@ -126,6 +135,15 @@ class SystemInfoWidget extends BaseWidget
         return $this;
     }
 
+    /**
+     * Enable/disable audit info
+     */
+    public function showAuditInfo(bool $show = true): static
+    {
+        $this->showAuditInfo = $show;
+        return $this;
+    }
+
     protected function getStats(): array
     {
         $stats = [];
@@ -149,6 +167,14 @@ class SystemInfoWidget extends BaseWidget
             $deploymentStat = $this->getDeploymentStat();
             if ($deploymentStat) {
                 $stats[] = $deploymentStat;
+            }
+        }
+
+        // Add security audit information if enabled
+        if ($this->showAuditInfo) {
+            $auditStat = $this->getAuditStat();
+            if ($auditStat) {
+                $stats[] = $auditStat;
             }
         }
 
@@ -192,6 +218,29 @@ class SystemInfoWidget extends BaseWidget
                     ? date('Y-m-d H:i:s T', $lastCommitTime)
                     : 'N/A',
             ]);
+    }
+
+    private function getAuditStat(): ?Stat
+    {
+        try {
+            $result = Process::run(['composer', 'audit', '--format=json']);
+            if ($result->successful()) {
+                $data = json_decode($result->output(), true);
+                $count = isset($data['advisories']) ? count($data['advisories']) : 0;
+                $value = $count > 0 ? "$count vulnerabilities" : "Secure";
+                $color = $count > 0 ? 'danger' : 'success';
+                $icon = 'heroicon-o-shield-check';
+                return Stat::make('Security Audit', $value)
+                    ->color($color)
+                    ->icon($icon);
+            } else {
+                return Stat::make('Security Audit', 'Check failed')
+                    ->color('warning')
+                    ->icon('heroicon-o-exclamation-triangle');
+            }
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     private function getLatestPhpVersion(): string|null
