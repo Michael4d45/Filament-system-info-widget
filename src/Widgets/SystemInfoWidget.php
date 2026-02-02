@@ -227,12 +227,12 @@ class SystemInfoWidget extends BaseWidget
             if (!is_dir($composerHome)) {
                 mkdir($composerHome, 0755, true);
             }
-            $result = Process::run(['composer', 'audit', '--format=json'], [
-                'env' => [
+            $result = Process::command(['composer', 'audit', '--format=json'])
+                ->env([
                     'COMPOSER_HOME' => $composerHome,
                     'HOME' => sys_get_temp_dir(),
-                ],
-            ]);
+                ])
+                ->run();
             if ($result->successful()) {
                 $output = trim($result->output());
                 if (str_contains($output, 'No packages') || str_contains($output, 'No security vulnerability advisories found')) {
