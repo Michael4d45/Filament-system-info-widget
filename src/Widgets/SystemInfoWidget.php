@@ -225,21 +225,36 @@ class SystemInfoWidget extends BaseWidget
         try {
             $result = Process::run(['composer', 'audit', '--format=json']);
             if ($result->successful()) {
-                $data = json_decode($result->output(), true);
-                $count = isset($data['advisories']) ? count($data['advisories']) : 0;
+                $output = trim($result->output());
+                if (str_contains($output, 'No packages') || str_contains($output, 'No security vulnerability advisories found')) {
+                    $count = 0;
+                } else {
+                    $data = json_decode($output, true);
+                    if ($data === null) {
+                        return Stat::make('Security Audit', 'Parse error')
+                            ->color('warning')
+                            ->icon('heroicon-o-exclamation-triangle');
+                    }
+                    $count = isset($data['advisories']) ? count($data['advisories']) : 0;
+                }
                 $value = $count > 0 ? "$count vulnerabilities" : "Secure";
                 $color = $count > 0 ? 'danger' : 'success';
-                $icon = 'heroicon-o-shield-check';
                 return Stat::make('Security Audit', $value)
                     ->color($color)
-                    ->icon($icon);
+                    ->icon('heroicon-o-shield-check');
             } else {
-                return Stat::make('Security Audit', 'Check failed')
+                $error = trim($result->errorOutput());
+                if ($error === '') {
+                    $error = 'Unknown error';
+                }
+                return Stat::make('Security Audit', 'Check failed: ' . $error)
                     ->color('warning')
                     ->icon('heroicon-o-exclamation-triangle');
             }
         } catch (\Exception $e) {
-            return null;
+            return Stat::make('Security Audit', 'Error: ' . $e->getMessage())
+                ->color('warning')
+                ->icon('heroicon-o-exclamation-triangle');
         }
     }
 
