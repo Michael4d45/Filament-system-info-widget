@@ -253,34 +253,22 @@ class SystemInfoWidget extends BaseWidget
                     'HOME' => sys_get_temp_dir(),
                 ])
                 ->run();
-            if ($result->successful()) {
-                $output = trim($result->output());
-                if (
-                    str_contains($output, 'No packages')
-                    || str_contains(
-                        $output,
-                        'No security vulnerability advisories found',
-                    )
-                ) {
-                    $count = 0;
-                } else {
-                    $data = json_decode($output, true);
-                    if ($data === null) {
-                        return Stat::make($this->securityAuditLabel, 'Parse error')
-                            ->color('warning')
-                            ->icon('heroicon-o-exclamation-triangle');
-                    }
-                    $count = isset($data['advisories'])
-                        ? count($data['advisories'])
-                        : 0;
-                }
+            $output = trim($result->output());
+            $error = trim($result->errorOutput());
+
+            // Try to parse JSON output even if there are warnings
+            $data = json_decode($output, true);
+            if ($data !== null && isset($data['advisories'])) {
+                $count = is_array($data['advisories']) ? count($data['advisories']) : 0;
                 $value = $count > 0 ? "$count vulnerabilities" : 'Secure';
                 $color = $count > 0 ? 'danger' : 'success';
                 return Stat::make($this->securityAuditLabel, $value)
                     ->color($color)
                     ->icon('heroicon-o-shield-check');
-            } else {
-                $error = trim($result->errorOutput());
+            }
+
+            // If not successful and no valid JSON, show error
+            if (!$result->successful()) {
                 if ($error === '') {
                     $error = 'Unknown error';
                 }
@@ -288,6 +276,18 @@ class SystemInfoWidget extends BaseWidget
                     ->color('warning')
                     ->icon('heroicon-o-exclamation-triangle');
             }
+
+            // If successful but no JSON (e.g., "No packages"), treat as secure
+            if (str_contains($output, 'No packages') || str_contains($output, 'No security vulnerability advisories found')) {
+                return Stat::make($this->securityAuditLabel, 'Secure')
+                    ->color('success')
+                    ->icon('heroicon-o-shield-check');
+            }
+
+            // Fallback for unexpected output
+            return Stat::make($this->securityAuditLabel, 'Parse error')
+                ->color('warning')
+                ->icon('heroicon-o-exclamation-triangle');
         } catch (\Exception $e) {
             return Stat::make($this->securityAuditLabel, 'Error: ' . $e->getMessage())
                 ->color('warning')
