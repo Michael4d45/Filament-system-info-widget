@@ -262,9 +262,19 @@ class SystemInfoWidget extends BaseWidget
                 $count = is_array($data['advisories']) ? count($data['advisories']) : 0;
                 $value = $count > 0 ? "$count vulnerabilities" : 'Secure';
                 $color = $count > 0 ? 'danger' : 'success';
-                return Stat::make($this->securityAuditLabel, $value)
+                $stat = Stat::make($this->securityAuditLabel, $value)
                     ->color($color)
                     ->icon('heroicon-o-shield-check');
+
+                if ($count > 0) {
+                    $vulnerablePackages = array_keys($data['advisories']);
+                    $stat->extraAttributes([
+                        'title' => 'Vulnerable packages: ' . implode(', ', $vulnerablePackages),
+                    ]);
+                    $stat->description('Run `composer update` to fix vulnerabilities');
+                }
+
+                return $stat;
             }
 
             // If not successful and no valid JSON, show error
