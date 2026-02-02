@@ -223,7 +223,16 @@ class SystemInfoWidget extends BaseWidget
     private function getAuditStat(): ?Stat
     {
         try {
-            $result = Process::run(['composer', 'audit', '--format=json']);
+            $composerHome = sys_get_temp_dir() . '/composer';
+            if (!is_dir($composerHome)) {
+                mkdir($composerHome, 0755, true);
+            }
+            $result = Process::run(['composer', 'audit', '--format=json'], [
+                'env' => [
+                    'COMPOSER_HOME' => $composerHome,
+                    'HOME' => sys_get_temp_dir(),
+                ],
+            ]);
             if ($result->successful()) {
                 $output = trim($result->output());
                 if (str_contains($output, 'No packages') || str_contains($output, 'No security vulnerability advisories found')) {
