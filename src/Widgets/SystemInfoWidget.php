@@ -59,6 +59,11 @@ class SystemInfoWidget extends BaseWidget
     protected string $releaseInfoPath = '.release-info';
 
     /**
+     * Label for the security audit stat
+     */
+    protected string $securityAuditLabel = 'Composer Security Audit';
+
+    /**
      * Configure the widget
      */
     public function configure(array $config = []): static
@@ -153,10 +158,16 @@ class SystemInfoWidget extends BaseWidget
             $currentVersion = $this->getCurrentVersion($package);
             $latestVersion = $this->getLatestVersion($package);
 
-            $stat = Stat::make($package['displayName'], $currentVersion)->icon($package['icon']);
+            $stat = Stat::make($package['displayName'], $currentVersion)->icon(
+                $package['icon'],
+            );
 
-            if ($latestVersion && $this->isOutdated($currentVersion, $latestVersion, $package)) {
-                $stat->color('danger')->description($latestVersion . ' available');
+            if (
+                $latestVersion
+                && $this->isOutdated($currentVersion, $latestVersion, $package)
+            ) {
+                $stat->color('danger')->description($latestVersion
+                . ' available');
             }
 
             $stats[] = $stat;
@@ -181,7 +192,7 @@ class SystemInfoWidget extends BaseWidget
         return $stats;
     }
 
-    private function getDeploymentStat(): ?Stat
+    private function getDeploymentStat(): null|Stat
     {
         $timeAgo = 'N/A';
         $commitMessage = 'N/A';
@@ -192,7 +203,8 @@ class SystemInfoWidget extends BaseWidget
             $output = trim((string) $result->output());
             [$commitMessage, $timestampStr] = explode('|', $output, 2);
             $lastCommitTime = (int) $timestampStr;
-            $timeAgo = Carbon::createFromTimestamp($lastCommitTime)->diffForHumans();
+            $timeAgo =
+                Carbon::createFromTimestamp($lastCommitTime)->diffForHumans();
         } catch (\Exception $e) {
             // If git isn't available (e.g. .git excluded on production), try a fallback file
             try {
@@ -200,9 +212,16 @@ class SystemInfoWidget extends BaseWidget
                 if (file_exists($releaseInfoPath)) {
                     $file = trim((string) file_get_contents($releaseInfoPath));
                     if ($file !== '') {
-                        [$commitMessage, $timestampStr] = explode('|', $file, 3);
+                        [$commitMessage, $timestampStr] = explode(
+                            '|',
+                            $file,
+                            3,
+                        );
                         $lastCommitTime = (int) $timestampStr;
-                        $timeAgo = Carbon::createFromTimestamp($lastCommitTime)->diffForHumans();
+                        $timeAgo =
+                            Carbon::createFromTimestamp(
+                                $lastCommitTime,
+                            )->diffForHumans();
                     }
                 }
             } catch (\Throwable $ignore) {
@@ -220,7 +239,7 @@ class SystemInfoWidget extends BaseWidget
             ]);
     }
 
-    private function getAuditStat(): ?Stat
+    private function getAuditStat(): null|Stat
     {
         try {
             $composerHome = sys_get_temp_dir() . '/composer';
@@ -228,6 +247,7 @@ class SystemInfoWidget extends BaseWidget
                 mkdir($composerHome, 0755, true);
             }
             $result = Process::command(['composer', 'audit', '--format=json'])
+                ->path(base_path())
                 ->env([
                     'COMPOSER_HOME' => $composerHome,
                     'HOME' => sys_get_temp_dir(),
@@ -235,20 +255,28 @@ class SystemInfoWidget extends BaseWidget
                 ->run();
             if ($result->successful()) {
                 $output = trim($result->output());
-                if (str_contains($output, 'No packages') || str_contains($output, 'No security vulnerability advisories found')) {
+                if (
+                    str_contains($output, 'No packages')
+                    || str_contains(
+                        $output,
+                        'No security vulnerability advisories found',
+                    )
+                ) {
                     $count = 0;
                 } else {
                     $data = json_decode($output, true);
                     if ($data === null) {
-                        return Stat::make('Security Audit', 'Parse error')
+                        return Stat::make($this->securityAuditLabel, 'Parse error')
                             ->color('warning')
                             ->icon('heroicon-o-exclamation-triangle');
                     }
-                    $count = isset($data['advisories']) ? count($data['advisories']) : 0;
+                    $count = isset($data['advisories'])
+                        ? count($data['advisories'])
+                        : 0;
                 }
-                $value = $count > 0 ? "$count vulnerabilities" : "Secure";
+                $value = $count > 0 ? "$count vulnerabilities" : 'Secure';
                 $color = $count > 0 ? 'danger' : 'success';
-                return Stat::make('Security Audit', $value)
+                return Stat::make($this->securityAuditLabel, $value)
                     ->color($color)
                     ->icon('heroicon-o-shield-check');
             } else {
@@ -256,12 +284,12 @@ class SystemInfoWidget extends BaseWidget
                 if ($error === '') {
                     $error = 'Unknown error';
                 }
-                return Stat::make('Security Audit', 'Check failed: ' . $error)
+                return Stat::make($this->securityAuditLabel, 'Check failed: ' . $error)
                     ->color('warning')
                     ->icon('heroicon-o-exclamation-triangle');
             }
         } catch (\Exception $e) {
-            return Stat::make('Security Audit', 'Error: ' . $e->getMessage())
+            return Stat::make($this->securityAuditLabel, 'Error: ' . $e->getMessage())
                 ->color('warning')
                 ->icon('heroicon-o-exclamation-triangle');
         }
@@ -349,7 +377,8 @@ class SystemInfoWidget extends BaseWidget
     {
         return match ($package['type']) {
             'packagist' => ltrim(
-                InstalledVersions::getPrettyVersion($package['name']) ?? 'Unknown',
+                InstalledVersions::getPrettyVersion($package['name'])
+                ?? 'Unknown',
                 'v',
             ),
             'php' => phpversion(),
@@ -363,7 +392,9 @@ class SystemInfoWidget extends BaseWidget
     private function getLatestVersion(array $package): string|null
     {
         return match ($package['type']) {
-            'packagist' => $this->getLatestVersionFromPackagist($package['name']),
+            'packagist' => $this->getLatestVersionFromPackagist(
+                $package['name'],
+            ),
             'php' => $this->getLatestPhpVersion(),
             default => null,
         };
@@ -372,8 +403,11 @@ class SystemInfoWidget extends BaseWidget
     /**
      * @param array{name: string, displayName: string, icon: string, type: string} $package
      */
-    private function isOutdated(string $currentVersion, string $latestVersion, array $package): bool
-    {
+    private function isOutdated(
+        string $currentVersion,
+        string $latestVersion,
+        array $package,
+    ): bool {
         if ($currentVersion === 'Unknown') {
             return false;
         }
